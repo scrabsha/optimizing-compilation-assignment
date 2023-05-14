@@ -16,6 +16,42 @@ fi
 
 declare -A assembly_hashes=()
 
+file=$1
+
+function time_() {
+    command=$1
+    ts=$(date +%s%N)
+    sh -c "$command"
+    tt=$(($(date +%s%N) - $ts))
+    echo "$tt"
+}
+
+function run_benchmark() {
+    test_name=$1
+    compile_cmd=$2
+
+    bench_dir=bench/$file/$test_name
+    mkdir -p $bench_dir
+
+    # Get everyline that start with `// TEST:` from the file and print it in a new file.
+    # Don't include the `// TEST:` part
+    grep -E "// TEST:" $file | sed -E 's/\/\/ TEST: //' >$bench_dir/test.h
+
+    # Copy bench.c to the benchmark directory
+    cp bench.c $bench_dir/bench.c
+
+    # Compile the benchmark and the test code
+    gcc -c -O3 -o $bench_dir/bench.o $bench_dir/bench.c
+    sh -c "$compile_cmd -c -o $bench_dir/$file.o"
+
+    # Link the benchmark and the test code
+    gcc -o $bench_dir/bench $bench_dir/bench.o $bench_dir/$file.o
+
+    # Run the benchmark
+    time_for_run=$($bench_dir/bench)
+    echo "$1,$time_for_run" >>bench/$file/$file-benchmarks.csv
+}
+
 # Search for patterns
 grep -E '// RUN\([a-zA-Z0-9_-]+\):' $1 | while read -r line; do
     # Extract test name
@@ -29,9 +65,9 @@ grep -E '// RUN\([a-zA-Z0-9_-]+\):' $1 | while read -r line; do
     out_file="$out_dir/$name.s"
     mkdir -p $out_dir
     # Append output
-    cmd="$cmd -c -S -o $out_file"
     # Run command
-    $cmd
+    time_for_compilation=$(time_ "$cmd -c -S -o $out_file")
+    echo "$1,$name,$time_for_compilation" &>>compilation_times.csv
 
     # Generate hash
     hash=$(sha1sum $out_file | cut -d' ' -f1)
@@ -43,4 +79,6 @@ grep -E '// RUN\([a-zA-Z0-9_-]+\):' $1 | while read -r line; do
         echo "Warning: tests ${assembly_hashes[__$hash]},$name generate the same assembly"
         assembly_hashes[__$hash]="${assembly_hashes[__$hash]},$name"
     fi
+
+    run_benchmark $name "$cmd"
 done

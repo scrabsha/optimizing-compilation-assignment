@@ -5,14 +5,10 @@
 // RUN(gcc-o1-enabled): gcc -O1 -fthread-jumps
 // RUN(gcc-o2-disabled): gcc -O2 -fno-thread-jumps
 // RUN(gcc-o2-enabled): gcc -O2 -fthread-jumps
-//
-// RUN(clang-o1-disabled): clang -O1 -fthread-jumps
-// RUN(clang-o1-enabled): clang -O0 -fthread-jumps
 
-#include <stddef.h>
+void foo(void) { asm(""); }
 
-extern void foo(void);
-extern void bar(void);
+void bar(void) { asm(""); }
 
 void foo_(int a, int b, int c) {
   if (a && b)
@@ -20,3 +16,16 @@ void foo_(int a, int b, int c) {
   if (b || c)
     bar();
 }
+
+// TEST: extern void foo_(int a, int b, int c);
+// TEST: #define BEFORE_LOOP()
+// TEST: #define LOOP() foo_(0, 0, 0) ; \
+// TEST:                foo_(0, 0, 1) ; \
+// TEST:                foo_(0, 1, 0) ; \
+// TEST:                foo_(0, 1, 1) ; \
+// TEST:                foo_(1, 0, 0) ; \
+// TEST:                foo_(1, 0, 1) ; \
+// TEST:                foo_(1, 1, 0) ; \
+// TEST:                foo_(1, 1, 1)
+// TEST: #define AFTER_LOOP()
+// TEST: #define DIVIDER 8

@@ -5,8 +5,9 @@ main: $(test_output_dirs)
 
 %: %.c
 	@echo "[$<]"
-	@./run_compiler.sh $<
+	@mkdir -p $@
 	@touch $@
+	@./run_compiler.sh $<
 
 clean:
 	@rm -rf $(test_output_dirs)

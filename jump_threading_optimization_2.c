@@ -19,9 +19,12 @@
 // RUN(gcc-s-0): gcc -fno-thread-jumps -Os
 // RUN(gcc-s-1): gcc -fthread-jumps -Os
 
-extern int stuff(void);
+int stuff(void) {
+  asm("");
+  return 0;
+}
 
-int main(int a, char **b) {
+int test(int a) {
   if (a > 5)
     goto j;
   stuff();
@@ -35,3 +38,9 @@ j:
 somewhere:
   return 0;
 }
+
+// TEST: int test(int a);
+// TEST: #define BEFORE_LOOP()
+// TEST: #define LOOP() test(5) + test(6)
+// TEST: #define AFTER_LOOP()
+// TEST: #define DIVIDER 2
