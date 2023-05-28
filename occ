@@ -1,0 +1,132 @@
+#! /bin/python3
+#
+# Author: Sasha Pourcelot <@scrabsha>
+#
+# Usage:
+#  occ <file> <base args>
+#
+# Compiles <file> with gcc with <base args>, but compiles functions prefixed
+# with //@ <args> comments separately with the arguments passed in the comments.
+# The output is a single executable with all the functions linked together.
+#
+# The file must be a fully contained program, i.e. it must contain a main function.
+
+
+def split_input_in_chunks(input: str, base_args: list[str]) -> list[tuple[str, list[str]]]:
+    chunks = []
+    current_chunk = []
+    base_args = base_args.copy()
+    current_args = base_args.copy()
+    include_list = []
+    for line in input.splitlines():
+        if line.startswith("#include"):
+            include_list.append(line)
+
+        if line.startswith("//@"):
+            chunks.append(("\n".join(current_chunk), current_args))
+            current_chunk = include_list.copy()
+            current_args = (line[3:].split())
+            if len(current_args) == 0:
+                current_args = base_args.copy()
+
+        else:
+            current_chunk.append(line)
+
+    chunks.append(("\n".join(current_chunk), current_args))
+
+    return chunks
+
+# Returns the path to the artefact
+
+
+def compile_chunk(code: str, id: int, path_prefix: str, args: list[str]) -> str:
+    import tempfile
+    import subprocess
+    import os
+
+    out_file = os.path.join(path_prefix, str(id) + ".o")
+
+    print("Compiling the following file")
+    print(code)
+
+    args = args.copy()
+
+    args.extend(["-c", "-o", out_file])
+
+    tmpfile = os.path.join(path_prefix, "tmp.c")
+    with open(tmpfile, "w") as f:
+        f.write(code)
+
+    subprocess.run(["gcc", tmpfile] + args)
+
+    return out_file
+
+
+def link_chunks(path_prefix: str, chunk_objects: list[str]) -> str:
+    import tempfile
+    import subprocess
+    import os
+
+    output = os.path.join(path_prefix, "tmp.out")
+    subprocess.run(["gcc", "-o", output] + chunk_objects)
+
+    return output
+
+# Apply the following transformations:
+# - Remove the -c argument and the argument that immediately follows it
+# - Remove the -o argument and the argument that immediately follows it
+
+
+def handle_base_args(args: list[str]) -> list[str]:
+    args = args.copy()
+    i = 0
+    while i < len(args):
+        if args[i] == "-c":
+            args.pop(i)
+            args.pop(i)
+        elif args[i] == "-o":
+            args.pop(i)
+            args.pop(i)
+        else:
+            i += 1
+
+    return args
+
+
+def output_artefact(args: list[str]) -> str:
+    # Return the element after -o
+    i = 0
+    while i < len(args):
+        if args[i] == "-o":
+            return args[i+1]
+        i += 1
+    return None
+
+
+def main():
+    import sys
+    import tempfile
+    import shutil
+
+    if len(sys.argv) < 3:
+        print("Usage: occ <file> <base args>")
+        exit(1)
+
+    with open(sys.argv[1], "r") as f:
+        input = f.read()
+
+    base_args = handle_base_args(sys.argv[2:])
+    chunks = split_input_in_chunks(input, base_args)
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        chunk_objects = [compile_chunk(code, idx, tmpdirname, args)
+                         for idx, (code, args) in enumerate(chunks)]
+
+        tmp_output_artefact = link_chunks(tmpdirname, chunk_objects)
+
+        out_path = output_artefact(sys.argv[2:])
+        shutil.copy(tmp_output_artefact, out_path)
+
+
+if __name__ == "__main__":
+    main()

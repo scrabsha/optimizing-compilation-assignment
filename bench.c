@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <sys/time.h>
 
-extern void __before_loop();
-
 int main() {
   // store current time
   struct timeval start, end;
@@ -28,4 +26,6 @@ int main() {
 #endif
 
   printf("%f\n", elapsed);
+
+  return 0;
 }

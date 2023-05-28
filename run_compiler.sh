@@ -21,7 +21,7 @@ file=$1
 function time_() {
     command=$1
     ts=$(date +%s%N)
-    sh -c "$command"
+    LD_LIBRARY_PATH="/opt/intel/oneapi/compiler/2023.0.0/linux/compiler/lib/intel64_lin/:$LD_LIBRARY_PATH" PATH="/opt/intel/oneapi/compiler/2023.1.0/linux/bin/intel64/:$PATH" sh -c "$command"
     tt=$(($(date +%s%N) - $ts))
     echo "$tt"
 }
@@ -41,14 +41,16 @@ function run_benchmark() {
     cp bench.c $bench_dir/bench.c
 
     # Compile the benchmark and the test code
-    gcc -c -O3 -o $bench_dir/bench.o $bench_dir/bench.c
-    sh -c "$compile_cmd -c -o $bench_dir/$file.o"
+    gcc -c -g -ggdb -O3 -o $bench_dir/bench.o $bench_dir/bench.c
+    PATH="/opt/intel/oneapi/compiler/2023.1.0/linux/bin/intel64/:$PATH" sh -c "$compile_cmd -g -ggdb -c -o $bench_dir/$file.o"
 
     # Link the benchmark and the test code
-    gcc -o $bench_dir/bench $bench_dir/bench.o $bench_dir/$file.o
+    gcc -L /opt/intel/oneapi/compiler/2023.1.0/linux/compiler/lib/intel64_lin \
+        -lirc \
+        -o $bench_dir/bench $bench_dir/bench.o $bench_dir/$file.o
 
     # Run the benchmark
-    time_for_run=$($bench_dir/bench)
+    time_for_run=$(LD_LIBRARY_PATH="/opt/intel/oneapi/compiler/2023.0.0/linux/compiler/lib/intel64_lin/:$LD_LIBRARY_PATH" $bench_dir/bench)
     echo "$1,$time_for_run" >>bench/$file/$file-benchmarks.csv
 }
 

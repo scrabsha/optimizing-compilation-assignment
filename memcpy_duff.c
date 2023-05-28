@@ -7,10 +7,15 @@
 // RUN(clang-1): clang -O1
 // RUN(clang-2): clang -O2
 // RUN(clang-3): clang -O3
+//
+// RUN(icc-0): icc -O0
+// RUN(icc-1): icc -O1
+// RUN(icc-2): icc -O2
+// RUN(icc-3): icc -O3
 
 #include <stddef.h>
 
-void *memcpy__(void *dest, const void *src, size_t n) {
+void *memcpy__(char *dest, const char *src, size_t n) {
   char *d = dest;
 
   switch (n % 8) {
