@@ -11,6 +11,62 @@
 #
 # The file must be a fully contained program, i.e. it must contain a main function.
 
+def chunk_as_header(chunk: str) -> str:
+    """
+    Turn every C function with a body into a simple declaration.
+    Keep every preprocessing directive (#include, #define, etc.) as is.
+
+    We could use ctags for this. The third column contains the data we need.
+    """
+    # Run ctags
+    import subprocess
+    import tempfile
+    import os
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        tmpfile = os.path.join(tmpdirname, "tmp.c")
+        with open(tmpfile, "w") as f:
+            f.write(chunk)
+
+        p = subprocess.run(
+            ["ctags", "-x", tmpfile], capture_output=True)
+        if p.returncode != 0:
+            print("ctags failed")
+            exit(1)
+
+        # Parse the output
+        lines = p.stdout.decode().splitlines()
+
+        output_lines = []
+
+        for line in lines:
+            # Split columns
+            columns = line.split()
+
+            symbol_kind = columns[1]
+            symbol_data = line[56:]
+
+            if symbol_kind == "function":
+                # Remove the trailing { if it exists, append a ; at the end
+                symbol_data = symbol_data.rstrip("{") + ";"
+            elif symbol_kind == "macro":
+                pass
+                # Nothing to do
+            elif symbol_kind == "variable":
+                # Add an extern keyword at the beginning, add a ; at the end
+                # if it doesn't exist
+                symbol_data = "extern " + symbol_data
+                if not symbol_data.endswith(";"):
+                    symbol_data += ";"
+            else:
+                print("Unknown symbol kind: ", symbol_kind)
+                # Unknown symbol kind
+                continue
+
+            output_lines.append(symbol_data)
+
+        return "\n".join(output_lines)
+
 
 def split_input_in_chunks(input: str, base_args: list[str]) -> list[tuple[str, list[str]]]:
     chunks = []
@@ -36,18 +92,14 @@ def split_input_in_chunks(input: str, base_args: list[str]) -> list[tuple[str, l
 
     return chunks
 
-# Returns the path to the artefact
 
-
-def compile_chunk(code: str, id: int, path_prefix: str, args: list[str]) -> str:
+def compile_chunk(code: str, id: int, path_prefix: str, args: list[str], header: str) -> str:
+    """Returns the path to the artefact"""
     import tempfile
     import subprocess
     import os
 
     out_file = os.path.join(path_prefix, str(id) + ".o")
-
-    print("Compiling the following file")
-    print(code)
 
     args = args.copy()
 
@@ -55,9 +107,15 @@ def compile_chunk(code: str, id: int, path_prefix: str, args: list[str]) -> str:
 
     tmpfile = os.path.join(path_prefix, "tmp.c")
     with open(tmpfile, "w") as f:
+        f.write(header)
+        f.write("\n")
         f.write(code)
 
-    subprocess.run(["gcc", tmpfile] + args)
+    # The same, except that we check for the exit code
+    p = subprocess.run(["gcc", tmpfile] + args)
+    if p.returncode != 0:
+        print("Compilation failed")
+        exit(1)
 
     return out_file
 
@@ -68,16 +126,20 @@ def link_chunks(path_prefix: str, chunk_objects: list[str]) -> str:
     import os
 
     output = os.path.join(path_prefix, "tmp.out")
-    subprocess.run(["gcc", "-o", output] + chunk_objects)
+    p = subprocess.run(["gcc", "-o", output] + chunk_objects)
+    if p.returncode != 0:
+        print("Linking failed")
+        exit(1)
 
     return output
 
-# Apply the following transformations:
-# - Remove the -c argument and the argument that immediately follows it
-# - Remove the -o argument and the argument that immediately follows it
-
 
 def handle_base_args(args: list[str]) -> list[str]:
+    """
+    Apply the following transformations:
+    - Remove the -c argument and the argument that immediately follows it
+    - Remove the -o argument and the argument that immediately follows it
+    """
     args = args.copy()
     i = 0
     while i < len(args):
@@ -118,9 +180,16 @@ def main():
     base_args = handle_base_args(sys.argv[2:])
     chunks = split_input_in_chunks(input, base_args)
 
+    header = ""
+
     with tempfile.TemporaryDirectory() as tmpdirname:
-        chunk_objects = [compile_chunk(code, idx, tmpdirname, args)
-                         for idx, (code, args) in enumerate(chunks)]
+        chunk_objects = []
+
+        # But we want to use for loop
+        for idx, (code, args) in enumerate(chunks):
+            object = compile_chunk(code, idx, tmpdirname, args, header)
+            chunk_objects.append(object)
+            header += "\n" + chunk_as_header(code)
 
         tmp_output_artefact = link_chunks(tmpdirname, chunk_objects)
 
