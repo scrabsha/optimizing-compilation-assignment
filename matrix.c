@@ -10,6 +10,12 @@
 // RUN(clang-1): clang -O1
 // RUN(clang-2): clang -O2
 // RUN(clang-3): clang -O3
+//
+// RUN(icc-0): icc -O0
+// RUN(icc-1): icc -O1
+// RUN(icc-2): icc -O2
+// RUN(icc-3): icc -O3
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -36,9 +42,17 @@ int randint() { return rand() % MAX_VALUE; }
 
 int matrix() {
   srand(time(NULL));
-  int mat1[][2] = {{randint(), randint()}, {randint(), randint()}};
-  int mat2[][2] = {{randint(), randint()}, {randint(), randint()}};
-  int m1 = 2, m2 = 2, n1 = 2, n2 = 2;
+  int mat1[5][5];
+  int mat2[5][5];
+
+  for (size_t i = 0; i < 5; i++) {
+    for (size_t j = 0; j < 5; j++) {
+      mat1[i][j] = randint();
+      mat2[i][j] = randint();
+    }
+  }
+
+  int m1 = 5, m2 = 5, n1 = 5, n2 = 5;
 
   multiply(m1, m2, mat1, n1, n2, mat2);
   return 0;
