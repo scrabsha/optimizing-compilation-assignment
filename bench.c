@@ -1,31 +1,65 @@
 #include "test.h"
+#include <assert.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <time.h>
+
+#define ITERATIONS 1000000
+
+typedef struct {
+  clock_t start;
+  clock_t end;
+} measurement;
+
+measurement measurements[ITERATIONS];
+
+// Returns the mean value of the measurements in microseconds
+double mean() {
+  assert(CLOCKS_PER_SEC == 1000000);
+
+  double sum = 0;
+  for (int i = 0; i < ITERATIONS; i++) {
+    sum += (double)(measurements[i].end - measurements[i].start);
+  }
+  return sum / ITERATIONS;
+}
+
+// Returns the standard deviation of the measurements in microseconds
+double std_dev(double mean) {
+  double sum = 0;
+  for (int i = 0; i < ITERATIONS; i++) {
+    double diff = (double)(measurements[i].end - measurements[i].start) - mean;
+    sum += diff * diff;
+  }
+  return sqrt(sum / ITERATIONS);
+}
 
 int main() {
-  // store current time
-  struct timeval start, end;
-  gettimeofday(&start, NULL);
-
   BEFORE_LOOP();
-  for (int i = 0; i < 10000; i++) {
+
+  for (int i = 0; i < ITERATIONS; i++) {
+    clock_t start = clock();
     LOOP();
+    clock_t end = clock();
+
+    measurements[i].start = start;
+    measurements[i].end = end;
   }
+
   AFTER_LOOP();
 
-  // store current time
-  gettimeofday(&end, NULL);
-
-  // calculate and print the elapsed time in microseconds
-  double elapsed =
-      (end.tv_sec - start.tv_sec) * 1000000.0 + end.tv_usec - start.tv_usec;
+  double mean_time = mean();
+  double std_dev_time = std_dev(mean_time);
 
 #ifdef DIVIDER
-  elapsed /= DIVIDER;
+  int divider = DIVIDER;
+  mean_time /= (double)divider;
+  std_dev_time /= (double)divider;
 #endif
 
-  printf("%f\n", elapsed);
+  printf("%f,%f\n", mean_time, std_dev_time);
 
   return 0;
 }
