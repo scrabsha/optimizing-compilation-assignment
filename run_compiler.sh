@@ -47,6 +47,7 @@ function run_benchmark() {
     # Link the benchmark and the test code
     gcc -L /opt/intel/oneapi/compiler/2023.1.0/linux/compiler/lib/intel64_lin \
         -lirc \
+        -lm \
         -o $bench_dir/bench $bench_dir/bench.o $bench_dir/$file.o
 
     # Run the benchmark
